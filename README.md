@@ -10,17 +10,36 @@ Robot teaching
 
 根据用户需求，软件需实现以下功能：
 
-- **CAD图纸解析**：支持DXF格式，提取几何实体（线段、圆弧、圆）。
-- **轨迹生成**：将选定CAD实体转换为机械臂运动轨迹，轨迹可以由点、半径和角度信息组成。
-- **用户交互**：提供直观界面，允许用户选择轨迹、设置喷嘴编号和喷淋类型（喷气或喷水）。
-- **配置管理**：保存配置到本地JSON文件，支持加载和修改。
-- **Modbus通信**：将配置数据发送到机械臂控制器，驱动其执行喷淋任务。
+- **CAD图纸解析**：支持DXF格式（使用 IxMilia.Dxf 库），提取几何实体（线段、圆弧、圆、多段线等）。
+- **轨迹生成**：将选定CAD实体转换为机械臂运动轨迹。轨迹基于基元类型（线、圆弧、圆）及其几何参数（如起点、终点、圆心、半径、三点定义）生成。
+- **喷涂遍管理（Spray Pass Management）**：
+    - 允许用户创建、命名和管理多个喷涂遍（Spray Pass）。
+    - 每个喷涂遍包含独立的轨迹序列。
+    - 用户可以切换当前活动的喷涂遍。
+- **用户交互与轨迹编辑**：
+    - 提供直观界面显示CAD图纸，支持缩放、平移。
+    - 支持通过点击或框选（Marquee Selection）方式选择CAD实体，并将其添加到当前喷涂遍的轨迹列表中。按住Shift键框选可取消选择区域内的实体。
+    - 允许用户调整所选轨迹在当前喷涂遍中的顺序。
+    - 提供详细的轨迹参数设置：
+        - **喷嘴控制**：为每条轨迹独立配置上、下喷嘴的启用状态，以及各自的气阀和液阀的开关状态。
+        - **方向控制**：允许反转线段和圆弧类轨迹的默认加工方向。
+        - **Z轴坐标调整**：为线段的起点/终点，圆弧/圆的特征点（通过三点定义）提供Z轴坐标的调整功能。
+        - **加工时间（Runtime）**：允许用户编辑每条轨迹的预期加工时间，用于计算速度。
+- **配置管理**：
+    - 保存配置到本地JSON文件，支持加载和修改。
+    - 配置中直接嵌入DXF文件内容，确保项目移植性。
+    - 保存画布视图状态（缩放/平移级别）。
+- **Modbus通信与测试**：
+    - 将当前选定喷涂遍的配置数据发送到机械臂控制器。
+    - 发送前检查机器人状态（通过读取特定Modbus寄存器，如1000号：0=忙碌, 1=就绪, 2=错误）。
+    - 提供“测试运行”功能，允许用户选择慢速（值11写入1001号寄存器）或标准速度（值22写入1001号寄存器）模式，并通过写入特定值（如33到1002号寄存器）启动机器人空运行。
+- **输出数据文件**：生成一个详细的文本文件（`RobTeach_SendData_*.txt`），包含所有喷涂遍及其轨迹的加工参数，供机器人直接使用或进一步处理。
 
 ### 2.1 假设与约束
 
-- CAD图纸主要为2D DXF格式，机械臂喷淋任务在固定Z高度的2D平面进行。
-- 机械臂控制器支持Modbus协议，但具体寄存器映射需进一步确认。
-- 软件运行于Windows平台，需支持高分辨率显示和用户友好交互。
+- CAD图纸主要为2D DXF格式。虽然支持Z轴调整，但轨迹生成和大部分交互仍基于2D平面投影。
+- 机械臂控制器支持Modbus TCP协议，具体寄存器映射在软件中有预定义。
+- 软件运行于Windows平台，使用WPF框架。
 
 ## 3. 系统架构
 
@@ -36,7 +55,7 @@ Robot teaching
 
 | 模块       | 功能描述                            | 依赖库/技术       |
 | ---------- | ----------------------------------- | ----------------- |
-| CAD解析    | 解析DXF文件，提取线段、圆弧等实体   | netDxf            |
+| CAD解析    | 解析DXF文件，提取线段、圆弧等实体   | IxMilia.Dxf       |
 | 轨迹生成   | 将实体转换为机械臂轨迹信息          | 自定义算法        |
 | 用户界面   | 显示CAD图纸，支持轨迹选择和参数设置 | WPF               |
 | 配置管理   | 保存和加载JSON配置                  | JSON.NET          |
@@ -51,16 +70,23 @@ Robot teaching
 
 ### 4.2 CAD解析
 
-- **netDxf**（[netDxf GitHub](https://github.com/haplokuon/netDxf)）：开源库，支持AutoCAD 2000至2018的DXF格式，解析线段、圆弧、折线等2D实体。
-- 理由：DXF是工业标准格式，netDxf轻量且易于集成，适合2D图纸解析。
+- **IxMilia.Dxf**（[IxMilia.Dxf GitHub](https://github.com/ixmilia/dxf)）：一个 .NET Standard 库，用于读取和写入 DXF 文件。它支持多种 DXF 实体和版本。
+- 理由：DXF是工业标准格式，IxMilia.Dxf 是一个积极维护的库，支持 .NET Standard，使其具有良好的跨平台兼容性和现代 .NET 项目的适用性。
 
 ### 4.3 轨迹生成
 
-- 自定义算法处理几何实体：
-  - 线段：直接提取起点和终点。
-  - 圆弧：根据用户定义的分辨率离散化为点序列。
-  - 折线：按顺序连接各段的点。
-- 坐标变换：支持用户设置缩放、偏移或旋转，以匹配机械臂工作空间。
+- **基元定义与参数化**：
+  - CAD实体（如DXF的Line, Arc, Circle）被选中后，会转换为程序内部的 `Trajectory` 对象。
+  - **直线 (Line)**：由起点和终点定义（包含X,Y,Z坐标）。
+  - **圆弧 (Arc)**：通过三个点（起点P1, 弧上点P2, 终点P3）进行定义。每个点包含X,Y,Z坐标及可选的Rx,Ry,Rz姿态角。程序内部通过这三点计算出圆心、半径、起始/结束角度。
+  - **圆 (Circle)**：同样通过三个点（P1, P2, P3）进行定义，以确定圆的平面、圆心和半径。每个点包含X,Y,Z坐标及可选的Rx,Ry,Rz姿态角。
+  - **多段线 (LwPolyline)**：分解为直线和弧段序列。
+- **点序列生成 (Discretization)**：
+  - 对于圆弧和圆类型的轨迹，其定义的几何参数（如圆心、半径、起止角）会用于生成一系列离散点，以供显示和机器人路径执行。离散化的分辨率（如 `TrajectoryPointResolutionAngle`）用于控制点的密度。
+  - 直线轨迹的点序列即为其起点和终点。
+- **轨迹属性**：
+  - 每条轨迹关联详细的喷嘴控制参数、加工方向（可反转）、Z轴高度、加工时间（Runtime）等。
+- **坐标变换**：画布支持缩放和平移。实际坐标变换以匹配机械臂工作空间主要通过确保CAD图纸原点和尺寸与机器人工作区对齐，以及通过Z轴调整实现。全局变换参数（如 `Transform` 类）不再是主要的配置项，重点在于点本身的坐标。
 
 ### 4.4 用户界面
 
@@ -75,15 +101,72 @@ Robot teaching
 - 数据结构示例：
 
   ```csharp
-  public class Trajectory {
-      public List<Point> Points { get; set; } // 轨迹点列表
-      public int NozzleNumber { get; set; }   // 喷嘴编号
-      public bool IsWater { get; set; }       // 喷水（true）或喷气（false）
+  // Represents a point with X, Y, Z coordinates and Rx, Ry, Rz orientation angles
+  public class TrajectoryPointWithAngles {
+      public DxfPoint Coordinates { get; set; } // X, Y, Z from DxfPoint
+      public double Rx { get; set; } // Rotation around X-axis
+      public double Ry { get; set; } // Rotation around Y-axis
+      public double Rz { get; set; } // Rotation around Z-axis
   }
+
+  public class Trajectory {
+      // public List<Point> Points { get; set; } // (UI-only, not directly in JSON, generated from geometric params)
+      public string PrimitiveType { get; set; } // "Line", "Arc", "Circle"
+
+      // Geometric parameters for Line
+      public DxfPoint LineStartPoint { get; set; }
+      public DxfPoint LineEndPoint { get; set; }
+
+      // Geometric parameters for Arc (3-point definition)
+      public TrajectoryPointWithAngles ArcPoint1 { get; set; }
+      public TrajectoryPointWithAngles ArcPoint2 { get; set; } // Midpoint on arc
+      public TrajectoryPointWithAngles ArcPoint3 { get; set; }
+
+      // Geometric parameters for Circle (3-point definition)
+      public TrajectoryPointWithAngles CirclePoint1 { get; set; }
+      public TrajectoryPointWithAngles CirclePoint2 { get; set; }
+      public TrajectoryPointWithAngles CirclePoint3 { get; set; }
+      // Original DxfEntity handle/info might also be stored for reconciliation
+
+      public bool IsReversed { get; set; }       // Trajectory direction reversal
+      public double Runtime { get; set; }        // Trajectory execution time in seconds
+
+      // Detailed Nozzle Control
+      public bool UpperNozzleEnabled { get; set; }
+      public bool UpperNozzleGasOn { get; set; }
+      public bool UpperNozzleLiquidOn { get; set; }
+      public bool LowerNozzleEnabled { get; set; }
+      public bool LowerNozzleGasOn { get; set; }
+      public bool LowerNozzleLiquidOn { get; set; }
+      // Note: NozzleNumber might be implicitly handled or removed
+  }
+
+  public class SprayPass {
+      public string PassName { get; set; }
+      public List<Trajectory> Trajectories { get; set; }
+  }
+
+  // Represents canvas zoom/pan state
+  public class CanvasViewSettings {
+      public double ScaleX { get; set; }
+      public double ScaleY { get; set; }
+      public double TranslateX { get; set; }
+      public double TranslateY { get; set; }
+  }
+
   public class Configuration {
-      public List<Trajectory> Trajectories { get; set; } // 最多五条轨迹
       public string ProductName { get; set; }            // 产品名称
-      public Transform Transform { get; set; }           // 坐标变换参数
+      public List<SprayPass> SprayPasses { get; set; }    // List of spray passes
+      public int CurrentPassIndex { get; set; }          // Index of the currently active pass
+
+      public string DxfFileContent { get; set; }         // Embedded DXF file content as string
+      public string ModbusIpAddress { get; set; }        // Modbus server IP
+      public int ModbusPort { get; set; }                // Modbus server port
+      public CanvasViewSettings CanvasState { get; set; } // Saved canvas zoom/pan state
+      public int SelectedTrajectoryIndexInCurrentPass { get; set; } // Index of selected trajectory in UI
+
+      // Transform might be handled per trajectory or globally if still needed.
+      // public Transform Transform { get; set; }        // (Consider if still global or per-trajectory)
   }
   ```
 
@@ -91,64 +174,128 @@ Robot teaching
 
 - **EasyModbusTCP.NET**（[EasyModbusTCP.NET GitHub](https://github.com/rossmann-engineering/EasyModbusTCP.NET)）：支持Modbus TCP、UDP和RTU，API简单，适合工业自动化。
 
-- 数据传输假设：
+- **核心通信流程**：
+    1.  **连接**：用户通过界面输入IP地址和端口号连接到Modbus服务器。
+    2.  **状态检查（发送前）**：在发送配置或执行测试运行前，软件会读取机械臂状态寄存器（默认为地址1000）。
+        - `1`：表示机械臂就绪。
+        - `0`：表示机械臂忙碌。
+        - `2`：表示机械臂故障。
+        软件仅在状态为 `1` 时继续。
+    3.  **发送配置**：将当前选定的活动喷涂遍（Active Spray Pass）中的轨迹数据发送到机械臂。
+        -   发送轨迹数量（写入地址 `1000`，注意：此地址在发送配置时被覆盖，不同于状态读取时的用途）。
+        -   对于每条轨迹（最多5条，由 `MaxTrajectories` 定义）：
+            -   点数（写入 `1001 + i * TrajectoryRegisterOffset`）。
+            -   X坐标数组（写入 `1002 + i * TrajectoryRegisterOffset`）。
+            -   Y坐标数组（写入 `1052 + i * TrajectoryRegisterOffset`）。
+            -   （旧）喷嘴编号（写入 `1102 + i * TrajectoryRegisterOffset`，根据新喷嘴逻辑，此项可能已调整或其值有特定含义）。
+            -   喷淋类型（写入 `1103 + i * TrajectoryRegisterOffset`）：`1` 表示任一液阀开启，`0` 表示仅气阀或无喷淋。
+            -   *注意：Z轴坐标和旋转角度（Rx, Ry, Rz）目前主要用于生成`RobTeach_SendData_*.txt`文件，Modbus直接发送的数据主要基于X,Y坐标和简化的喷淋类型。详细的3D姿态控制依赖于机器人控制器对该文本文件的解析和执行。*
+    4.  **测试运行**：
+        -   用户选择速度模式：慢速（值 `11`）或标准速度（值 `22`）。
+        -   将所选速度模式值写入速度控制寄存器（默认为地址 `1001`）。
+        -   短暂延时后，向测试运行触发寄存器（默认为地址 `1002`）写入特定值（如 `33`）以启动。
+    5.  **断开连接**：用户可以手动断开Modbus连接。
 
-  - 发送轨迹数量、点坐标、喷嘴编号和喷淋类型到指定寄存器。
+- **主要Modbus寄存器地址（示例，具体以实际控制器为准）**：
+    - `1000`：状态读取（忙碌/就绪/错误） 或 写入轨迹总数（发送配置时）。
+    - `1001`：轨迹1点数（发送配置时） 或 写入速度模式（测试运行时）。
+    - `1002`：轨迹1 X坐标基地址（发送配置时） 或 写入测试运行触发（测试运行时）。
+    - `1052`：轨迹1 Y坐标基地址。
+    - `1102`：轨迹1喷嘴编号（可能已调整）。
+    - `1103`：轨迹1喷淋类型。
+    - `TrajectoryRegisterOffset`（代码内常量，通常为100）：用于计算后续轨迹的寄存器基地址。
 
-  - 示例寄存器映射（需确认）：
+## 4.7 输出数据文件 (Output Data File)
 
-    | 寄存器地址 | 数据内容                    |
-    | ---------- | --------------------------- |
-    | 1000       | 轨迹数量                    |
-    | 1001       | 轨迹1点数                   |
-    | 1002-1051  | 轨迹1 X坐标                 |
-    | 1052-1101  | 轨迹1 Y坐标                 |
-    | 1102       | 轨迹1喷嘴编号               |
-    | 1103       | 轨迹1喷淋类型（0=气，1=水） |
+除了通过Modbus直接与机器人通信外，软件还会生成一个详细的文本数据文件，通常位于程序运行目录下的 `log` 子目录中，文件名格式为 `RobTeach_SendData_YYYYMMDD_HHMMSS_fff.txt`。该文件旨在为机器人提供一个可供直接解析或进一步处理的完整加工程序。
+
+文件内容结构如下：
+
+1.  **总喷涂遍数 (Total Number of Passes)**：一个浮点数，表示配置中包含的总喷涂遍数量。
+2.  **对于每一个喷涂遍 (For each Spray Pass)**：
+    a.  **遍内基元总数 (Number of Primitives in Pass)**：一个浮点数，表示当前喷涂遍包含的轨迹（基元）数量。
+    b.  **对于每一个基元/轨迹 (For each Primitive/Trajectory in Pass)**：
+        i.  **基元序号 (Primitive Index)**：一个浮点数，表示当前基元在本遍内的序号（从1开始）。
+        ii. **基元类型 (Primitive Type)**：一个浮点数，`1.0` 代表直线 (Line)，`2.0` 代表圆 (Circle)，`3.0` 代表圆弧 (Arc)。
+        iii. **上喷嘴气阀状态 (Upper Nozzle Gas Status)**：`11.0` (开) 或 `10.0` (关)。
+        iv. **上喷嘴液阀状态 (Upper Nozzle Liquid Status)**：`12.0` (开) 或 `10.0` (关)。
+        v.  **下喷嘴气阀状态 (Lower Nozzle Gas Status)**：`21.0` (开) 或 `20.0` (关)。
+        vi. **下喷嘴液阀状态 (Lower Nozzle Liquid Status)**：`22.0` (开) 或 `20.0` (关)。
+        vii. **末端执行器速度 (End Effector Speed)**：一个浮点数，单位为米/秒 (m/s)，根据轨迹长度和用户设定的加工时间（Runtime）计算得出。
+        viii. **基元几何数据 (Primitive Geometry Data)**：
+            -   **直线 (Line)**：包含起点和终点两个点的完整坐标。每个点6个值：X, Y, Z, Rx, Ry, Rz (均为浮点数，格式化为三位小数)。
+            -   **圆弧 (Arc)**：包含圆弧起点 (P1)、圆弧上一点 (P2 - 通常是中点)、圆弧终点 (P3) 三个点的完整坐标。每个点6个值：X, Y, Z, Rx, Ry, Rz。
+            -   **圆 (Circle)**：包含圆上三个点 (P1, P2, P3) 的完整坐标，用于定义圆。每个点6个值：X, Y, Z, Rx, Ry, Rz。
+            -   *Rx, Ry, Rz 代表工具坐标系相对于基坐标系的姿态角，通常由用户在轨迹参数中设定或通过CAD图纸的3D信息间接获得。*
+        ix. **预留值 (Reserved Values)**：3个浮点数值，默认为 `0.0`，供未来扩展。
+
+该文件的生成确保了即使在复杂的轨迹包含3D姿态信息时，机器人也能获得完整的加工指令。
 
 ## 5. 实现步骤
 
 ### 5.1 项目初始化
 
-- 创建C# WPF项目，安装NuGet包：netDxf、EasyModbusTCP、Newtonsoft.Json。
+- 创建C# WPF项目，安装NuGet包：IxMilia.Dxf、EasyModbusTCP、Newtonsoft.Json。
 - 配置项目支持.NET Framework或.NET Core，确保兼容性。
 
 ### 5.2 CAD解析模块
 
-- 使用netDxf加载DXF文件：
+- 使用IxMilia.Dxf加载DXF文件：
 
   ```csharp
-  DxfDocument dxf = DxfDocument.Load("sample.dxf");
-  var lines = dxf.Lines;
-  var arcs = dxf.Arcs;
-  var polylines = dxf.LwPolylines;
+  // using IxMilia.Dxf;
+  DxfFile dxfFile = DxfFile.Load("sample.dxf");
+  // Access entities via dxfFile.Entities collection
+  // Example:
+  // var lines = dxfFile.Entities.OfType<DxfLine>();
+  // var arcs = dxfFile.Entities.OfType<DxfArc>();
+  // var circles = dxfFile.Entities.OfType<DxfCircle>();
+  // var lwPolylines = dxfFile.Entities.OfType<DxfLwPolyline>();
   ```
 
 - 将实体转换为WPF可绘制的形状，显示在Canvas上。
 
 ### 5.3 轨迹生成模块
 
-- 实现算法将实体转换为点序列：
+- **从CAD实体创建Trajectory对象**：
+  - 当用户从CAD视图中选择一个实体（如 `DxfLine`, `DxfArc`, `DxfCircle`）时，会创建一个 `Trajectory` 对象。
+  - 原始DXF实体信息（或其句柄/ID）被保存，用于后续可能的重选或高亮。
+  - 根据实体类型，填充 `Trajectory`对象的 `PrimitiveType` 及相应的几何参数：
+    - **Line**: `LineStartPoint` 和 `LineEndPoint` 直接从 `DxfLine` 的P1, P2获取。
+    - **Arc**: 从 `DxfArc` 的圆心、半径、起止角计算出定义圆弧的三个关键点（P1, P2, P3），并存入 `ArcPoint1`, `ArcPoint2`, `ArcPoint3`。这些点也包含Z坐标和默认姿态角。
+    - **Circle**: 从 `DxfCircle` 的圆心、半径、法向量计算出定义圆的三个关键点（P1, P2, P3），存入 `CirclePoint1`, `CirclePoint2`, `CirclePoint3`。
+- **轨迹点集生成（`PopulateTrajectoryPoints`）**：
+  - `Trajectory` 对象有一个非持久化的 `Points` 列表 ( `List<System.Windows.Point>` )，用于WPF渲染和预览。
+  - 此列表根据 `PrimitiveType` 和相应的几何参数（如 `LineStartPoint`/`LineEndPoint` 或 `ArcPoint1/2/3` 等）动态生成。
+  - 对于圆弧和圆，会使用 `GeometryUtils.CalculateArcParametersFromThreePoints` 或 `GeometryUtils.CalculateCircleCenterRadiusFromThreePoints` 等辅助方法，通过三点定义反算出圆心、半径、起止角等参数，然后根据预设的分辨率（`TrajectoryPointResolutionAngle`）进行离散化，生成 `Points` 列表。
+  - 轨迹的 `IsReversed` 属性会影响点生成的顺序。
+- **属性赋值**：
+  - 新创建的 `Trajectory` 对象会被赋予默认的喷嘴设置、Runtime（基于最小长度/速度计算）等。这些属性后续可在UI中编辑。
 
-  - 线段：直接使用起点和终点。
-  - 圆弧：根据角度和半径，生成等间隔点。
-  - 折线：遍历顶点，连接各段。
-
-- 示例代码：
+- 示例代码（概念性，实际实现分布在 `MainWindow.xaml.cs` 的事件处理、 `CadService.cs` 和 `GeometryUtils.cs` 中）：
 
   ```csharp
-  public List<Point> ConvertArcToPoints(Arc arc, double resolution) {
-      List<Point> points = new List<Point>();
-      double startAngle = arc.StartAngle;
-      double endAngle = arc.EndAngle;
-      double radius = arc.Radius;
-      for (double angle = startAngle; angle <= endAngle; angle += resolution) {
-          double x = arc.Center.X + radius * Math.Cos(angle * Math.PI / 180);
-          double y = arc.Center.Y + radius * Math.Sin(angle * Math.PI / 180);
-          points.Add(new Point(x, y));
-      }
-      return points;
-  }
+  // In MainWindow when a DxfArc is selected:
+  // var newTrajectory = new Trajectory { PrimitiveType = "Arc", OriginalDxfEntity = dxfArcEntity };
+  // // ... code to calculate P1, P2, P3 from dxfArcEntity properties ...
+  // newTrajectory.ArcPoint1 = calculatedP1; // Type TrajectoryPointWithAngles
+  // newTrajectory.ArcPoint2 = calculatedP2;
+  // newTrajectory.ArcPoint3 = calculatedP3;
+  // PopulateTrajectoryPoints(newTrajectory); // Generates List<Point> for display
+  // currentPass.Trajectories.Add(newTrajectory);
+
+  // In PopulateTrajectoryPoints(Trajectory trajectory) for an Arc:
+  // if (trajectory.PrimitiveType == "Arc") {
+  //     var arcParams = GeometryUtils.CalculateArcParametersFromThreePoints(
+  //         trajectory.ArcPoint1.Coordinates,
+  //         trajectory.ArcPoint2.Coordinates,
+  //         trajectory.ArcPoint3.Coordinates);
+  //     if (arcParams.HasValue) {
+  //         var (center, radius, startAngle, endAngle, normal, isClockwise) = arcParams.Value;
+  //         // ... loop from startAngle to endAngle with resolution to generate points ...
+  //         // trajectory.Points.Add(new Point(x,y));
+  //     }
+  // }
   ```
 
 ### 5.4 用户界面模块
