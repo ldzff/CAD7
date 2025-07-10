@@ -2503,8 +2503,26 @@ namespace RobTeach.Views
         private void FitToViewButton_Click(object sender, RoutedEventArgs e) { AppLogger.Log("[USER ACTION] FitToViewButton_Click called.", LogLevel.Debug); PerformFitToView(); }
         private void PerformFitToView()
         {
-            AppLogger.Log("PerformFitToView: Method started.", LogLevel.Info);
-            AppLogger.Log($"PerformFitToView: Initial _dxfBoundingBox: X={_dxfBoundingBox.X:F3}, Y={_dxfBoundingBox.Y:F3}, Width={_dxfBoundingBox.Width:F3}, Height={_dxfBoundingBox.Height:F3}", LogLevel.Info);
+            // DIAGNOSTIC: Apply hardcoded identity transform
+            _scaleTransform.ScaleX = 1.0;
+            _scaleTransform.ScaleY = 1.0; // No Y-inversion for this specific test
+            _translateTransform.X = 0;
+            _translateTransform.Y = 0;
+            AppLogger.Log("PerformFitToView: [DIAGNOSTIC TEST] Applied fixed identity transform (Scale=1, No Y-inversion, Translate=0). DXF coordinates should map 1:1 to canvas coordinates relative to RenderTransformOrigin.", LogLevel.Warn);
+            // Optionally, uncomment the return below to *only* apply this diagnostic transform
+            // return;
+
+            // Original logic below is effectively bypassed if the return above is active,
+            // or will be overridden if the return is commented out.
+            // For a clean test, ensure this diagnostic part is the only part setting the transform for one run.
+            // However, for now, let the original logic run after this to see if it overrides correctly,
+            // but the log above will indicate the diagnostic was hit.
+            // For a true identity test, the rest of the method should be skipped.
+            // Let's proceed by letting it run through, the diagnostic log will be key.
+            // To make it a TRUE identity test that STOPS here, uncomment the 'return;'
+
+            AppLogger.Log("PerformFitToView: Method started (after diagnostic log).", LogLevel.Info);
+            AppLogger.Log($"PerformFitToView: Initial _dxfBoundingBox (may be ignored by diagnostic): X={_dxfBoundingBox.X:F3}, Y={_dxfBoundingBox.Y:F3}, Width={_dxfBoundingBox.Width:F3}, Height={_dxfBoundingBox.Height:F3}", LogLevel.Info);
 
             if (CadCanvas.ActualWidth <= 0 || CadCanvas.ActualHeight <= 0) {
                  AppLogger.Log($"[CRITICAL] PerformFitToView: Canvas ActualWidth ({CadCanvas.ActualWidth:F2}) or ActualHeight ({CadCanvas.ActualHeight:F2}) is zero or negative. Cannot perform fit. Resetting transforms and exiting.", LogLevel.Error);
