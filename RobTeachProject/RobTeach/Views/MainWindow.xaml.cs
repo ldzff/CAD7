@@ -2389,7 +2389,7 @@ namespace RobTeach.Views
         /// <returns>A Rect representing the bounding box, or Rect.Empty if no valid bounds can be determined.</returns>
         private Rect GetDxfBoundingBox(DxfFile dxfDoc)
         {
-            AppLogger.Log("GetDxfBoundingBox: Method started.", LogLevel.Debug);
+            AppLogger.Log("GetDxfBoundingBox: Method started.", LogLevel.Info); // Changed to Info for better visibility
             if (dxfDoc == null)
             {
                 AppLogger.Log("GetDxfBoundingBox: dxfDoc is null. Returning Rect.Empty.", LogLevel.Warning);
@@ -2432,7 +2432,26 @@ namespace RobTeach.Views
 
                     string entityType = entity.GetType().Name;
                     string entityLayer = entity.Layer ?? "NULL_LAYER";
-                    AppLogger.Log($"GetDxfBoundingBox: Processing Entity Idx:{entityIndex}, Type:{entityType}, Layer:'{entityLayer}'.", LogLevel.Debug);
+                    AppLogger.Log($"GetDxfBoundingBox: --- Processing Entity Idx:{entityIndex}, Type:{entityType}, Layer:'{entityLayer}' ---", LogLevel.Info);
+
+                    // Log key geometric properties before CalculateEntityBoundsSimple
+                    switch (entity)
+                    {
+                        case DxfLine line:
+                            AppLogger.Log($"GetDxfBoundingBox:   Line P1:({line.P1.X:F3},{line.P1.Y:F3},{line.P1.Z:F3}), P2:({line.P2.X:F3},{line.P2.Y:F3},{line.P2.Z:F3}), Extrusion:({line.ExtrusionDirection.X:F2},{line.ExtrusionDirection.Y:F2},{line.ExtrusionDirection.Z:F2})", LogLevel.Info);
+                            break;
+                        case DxfCircle circle:
+                            AppLogger.Log($"GetDxfBoundingBox:   Circle Center:({circle.Center.X:F3},{circle.Center.Y:F3},{circle.Center.Z:F3}), Radius:{circle.Radius:F3}", LogLevel.Info);
+                            break;
+                        case DxfLwPolyline lwPoly:
+                            AppLogger.Log($"GetDxfBoundingBox:   LwPolyline Vertices:{lwPoly.Vertices.Count}, IsClosed:{lwPoly.IsClosed}", LogLevel.Info);
+                            for(int v_idx = 0; v_idx < lwPoly.Vertices.Count; v_idx++)
+                            {
+                                AppLogger.Log($"GetDxfBoundingBox:     Vertex {v_idx}: ({lwPoly.Vertices[v_idx].X:F3},{lwPoly.Vertices[v_idx].Y:F3}), Bulge:{lwPoly.Vertices[v_idx].Bulge:F4}", LogLevel.Info);
+                            }
+                            break;
+                        // Add other types as necessary
+                    }
 
                     if (_layersToIgnoreForBoundingBox.Contains(entityLayer, StringComparer.OrdinalIgnoreCase))
                     {
