@@ -2504,7 +2504,7 @@ namespace RobTeach.Views
         private void PerformFitToView()
         {
             AppLogger.Log("PerformFitToView: Method started.", LogLevel.Info);
-            AppLogger.Log($"PerformFitToView: Initial _dxfBoundingBox: X={_dxfBoundingBox.X:F3}, Y={_dxfBoundingBox.Y:F3}, Width={_dxfBoundingBox.Width:F3}, Height={_dxfBoundingBox.Height:F3}", LogLevel.Debug);
+            AppLogger.Log($"PerformFitToView: Initial _dxfBoundingBox: X={_dxfBoundingBox.X:F3}, Y={_dxfBoundingBox.Y:F3}, Width={_dxfBoundingBox.Width:F3}, Height={_dxfBoundingBox.Height:F3}", LogLevel.Info);
 
             if (CadCanvas.ActualWidth <= 0 || CadCanvas.ActualHeight <= 0) {
                  AppLogger.Log($"[CRITICAL] PerformFitToView: Canvas ActualWidth ({CadCanvas.ActualWidth:F2}) or ActualHeight ({CadCanvas.ActualHeight:F2}) is zero or negative. Cannot perform fit. Resetting transforms and exiting.", LogLevel.Error);
@@ -2516,7 +2516,7 @@ namespace RobTeach.Views
                 return;
             }
 
-            AppLogger.Log($"PerformFitToView: Canvas ActualWidth={CadCanvas.ActualWidth:F2}, ActualHeight={CadCanvas.ActualHeight:F2}", LogLevel.Debug);
+            AppLogger.Log($"PerformFitToView: Canvas ActualWidth={CadCanvas.ActualWidth:F2}, ActualHeight={CadCanvas.ActualHeight:F2}", LogLevel.Info);
 
             if (_dxfBoundingBox.IsEmpty)
             {
@@ -2534,7 +2534,7 @@ namespace RobTeach.Views
 
             double contentWidth = _dxfBoundingBox.Width;
             double contentHeight = _dxfBoundingBox.Height;
-            AppLogger.Log($"PerformFitToView: Content Dimensions: Width={contentWidth:F3}, Height={contentHeight:F3}", LogLevel.Debug);
+            AppLogger.Log($"PerformFitToView: Content Dimensions: Width={contentWidth:F3}, Height={contentHeight:F3}", LogLevel.Info);
 
             if (contentWidth <= 1e-6 || contentHeight <= 1e-6) // Use a small epsilon for zero check
             {
@@ -2551,13 +2551,13 @@ namespace RobTeach.Views
             double scaleX = canvasWidth / contentWidth;
             double scaleY = canvasHeight / contentHeight;
             double scale = Math.Min(scaleX, scaleY);
-            AppLogger.Log($"PerformFitToView: Calculated raw scales: scaleX={scaleX:F4}, scaleY={scaleY:F4}. Chosen scale (min): {scale:F4}", LogLevel.Debug);
+            AppLogger.Log($"PerformFitToView: Calculated raw scales: scaleX={scaleX:F4}, scaleY={scaleY:F4}. Chosen scale (min): {scale:F4}", LogLevel.Info);
 
-            double marginFactor = 0.95; // Increased margin slightly for better visibility
+            double marginFactor = 0.95;
             scale *= marginFactor;
-            AppLogger.Log($"PerformFitToView: Scale after margin ({marginFactor * 100}%): {scale:F4}", LogLevel.Debug);
+            AppLogger.Log($"PerformFitToView: Scale after margin ({marginFactor * 100}%): {scale:F4}", LogLevel.Info);
 
-            if (scale <= 1e-6) { // Use a small epsilon for zero check
+            if (scale <= 1e-6) {
                 AppLogger.Log($"[WARNING] PerformFitToView: Calculated scale ({scale:F4}) is zero or extremely small. Resetting to default 1.0.", LogLevel.Warning);
                 scale = 1.0;
             }
@@ -2566,17 +2566,20 @@ namespace RobTeach.Views
             _scaleTransform.ScaleY = -scale; // Invert Y-axis for CAD coordinate system (Y up)
             AppLogger.Log($"PerformFitToView: Applied ScaleTransform: ScaleX={_scaleTransform.ScaleX:F4}, ScaleY={_scaleTransform.ScaleY:F4}", LogLevel.Info);
 
-            // Reverted to Centering Logic (using the potentially tighter bounding box)
             double contentCenterX = _dxfBoundingBox.X + _dxfBoundingBox.Width / 2.0;
-            double contentCenterY = _dxfBoundingBox.Y + _dxfBoundingBox.Height / 2.0; // This is MinY + Height/2
-            AppLogger.Log($"PerformFitToView (Centering): Content Center (DXF coords): X={contentCenterX:F3}, Y={contentCenterY:F3}", LogLevel.Debug);
+            double contentCenterY = _dxfBoundingBox.Y + _dxfBoundingBox.Height / 2.0;
+            AppLogger.Log($"PerformFitToView: Content Center (DXF coords): X={contentCenterX:F3}, Y={contentCenterY:F3}", LogLevel.Info);
 
-            _translateTransform.X = (canvasWidth / 2.0) - (contentCenterX * _scaleTransform.ScaleX);
-            _translateTransform.Y = (canvasHeight / 2.0) - (contentCenterY * _scaleTransform.ScaleY);
-            AppLogger.Log($"PerformFitToView (Centering): Applied TranslateTransform: X={_translateTransform.X:F3}, Y={_translateTransform.Y:F3}", LogLevel.Info);
+            // Adjust translation for RenderTransformOrigin="0.5,0.5"
+            // The (0,0) of the TranslateTransform is now the center of the CadCanvas.
+            // We want the content's center (contentCenterX, contentCenterY) *after being scaled*
+            // to align with this canvas center.
+            _translateTransform.X = -(contentCenterX * _scaleTransform.ScaleX);
+            _translateTransform.Y = -(contentCenterY * _scaleTransform.ScaleY);
+            AppLogger.Log($"PerformFitToView (RenderTransformOrigin 0.5,0.5): Applied TranslateTransform: X={_translateTransform.X:F3}, Y={_translateTransform.Y:F3}", LogLevel.Info);
 
-            StatusTextBlock.Text = "View fitted to content (centered).";
-            AppLogger.Log("PerformFitToView: Method completed with centering alignment.", LogLevel.Info);
+            StatusTextBlock.Text = "View fitted to content (centered with RenderTransformOrigin 0.5,0.5).";
+            AppLogger.Log("PerformFitToView: Method completed with RenderTransformOrigin 0.5,0.5 alignment.", LogLevel.Info);
         }
         private void CadCanvas_MouseWheel(object sender, MouseWheelEventArgs e)
         {
