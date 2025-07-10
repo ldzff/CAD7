@@ -1487,54 +1487,43 @@ namespace RobTeach.Views
                     // Note: IxMilia.Dxf doesn't expose Handle property directly
                     // We'll skip handle mapping for now
 
-                    // Debug.WriteLine($"[JULES_DEBUG] LoadDxfButton_Click - Drawing Shapes: Document has {_currentDxfDocument.Entities.Count()} entities.");
+                    AppLogger.Log($"[INFO] LoadDxfButton_Click: Successfully loaded DXF. Processing {_currentDxfDocument.Entities.Count()} entities for display.", LogLevel.Info);
                     List<System.Windows.Shapes.Shape> wpfShapes = _cadService.GetWpfShapesFromDxf(_currentDxfDocument);
-                    // Debug.WriteLine($"[JULES_DEBUG] LoadDxfButton_Click - Drawing Shapes: CadService.GetWpfShapesFromDxf returned {wpfShapes.Count} shapes.");
-                    int shapeIndex = 0;
+
                     int entityIndex = 0;
-                    foreach(var entity in _currentDxfDocument.Entities)
+                    foreach(var entity in _currentDxfDocument.Entities) // Using _currentDxfDocument.Entities which should be non-null here
                     {
-                        // string entityIdentifier = $"EntityType: {entity.GetType().Name}, Handle: {entity.Handle.ToString("X")}"; // Removed: Causes compile error
-                        // Debug.WriteLine($"[JULES_DEBUG] LoadDxfButton_Click - Drawing Shapes: Processing DXF Entity at index {entityIndex} (C# type: {entity.GetType().Name})");
-                        if (shapeIndex < wpfShapes.Count)
+                        if (entityIndex < wpfShapes.Count) // Check against current entityIndex and available shapes
                         {
-                            var wpfShape = wpfShapes[shapeIndex];
+                            var wpfShape = wpfShapes[entityIndex]; // Access shape by entityIndex
                             if (wpfShape != null)
                             {
-                                // Debug.WriteLine($"[JULES_DEBUG] LoadDxfButton_Click - Drawing Shapes: WPF Shape for Entity at index {entityIndex} is {wpfShape.GetType().Name}. Adding to canvas and map.");
                                 wpfShape.Stroke = DefaultStrokeBrush;
                                 wpfShape.StrokeThickness = DefaultStrokeThickness;
                                 wpfShape.MouseLeftButtonDown += OnCadEntityClicked;
-                                _wpfShapeToDxfEntityMap[wpfShape] = entity;
+                                _wpfShapeToDxfEntityMap[wpfShape] = entity; // Map the current entity
                                 CadCanvas.Children.Add(wpfShape);
                             }
-                            else
-                            {
-                                // Debug.WriteLine($"[JULES_DEBUG] LoadDxfButton_Click - Drawing Shapes: WPF Shape for Entity at index {entityIndex} (C# type: {entity.GetType().Name}) is NULL from CadService.");
-                            }
+                            // else: CadService returned null for this entity, already logged by CadService if problematic
                         }
-                        else
-                        {
-                             // Debug.WriteLine($"[JULES_DEBUG] LoadDxfButton_Click - Drawing Shapes: No corresponding WPF shape in list for Entity at index {entityIndex} (C# type: {entity.GetType().Name}). Shape list too short.");
-                        }
-                        shapeIndex++;
+                        // else: wpfShapes list might be shorter than entities if CadService had issues, already logged by CadService
                         entityIndex++;
                     }
-                    if (wpfShapes.Count != _currentDxfDocument.Entities.Count()) // CadService now returns list with nulls, so counts should match. This log indicates if not.
-                    {
-                        // Debug.WriteLine($"[JULES_DEBUG] LoadDxfButton_Click - Drawing Shapes: WARNING - Entity count ({_currentDxfDocument.Entities.Count()}) and WPF shapes list count ({wpfShapes.Count}) do not match. This is unexpected if CadService pads with nulls.");
-                    }
+                    AppLogger.Log($"[INFO] LoadDxfButton_Click: Added {CadCanvas.Children.Count} shapes to canvas.", LogLevel.Info);
 
+
+                    // Calculate bounding box ONCE and use it
                     _dxfBoundingBox = GetDxfBoundingBox(_currentDxfDocument);
-                    _dxfBoundingBox = GetDxfBoundingBox(_currentDxfDocument);
+                    AppLogger.Log($"[INFO] LoadDxfButton_Click: Calculated _dxfBoundingBox: X={_dxfBoundingBox.X:F3}, Y={_dxfBoundingBox.Y:F3}, Width={_dxfBoundingBox.Width:F3}, Height={_dxfBoundingBox.Height:F3}", LogLevel.Info);
+
                     // Call PerformFitToView after layout has had a chance to update
-                    Debug.WriteLine($"[DEBUG] LoadDxfButton_Click: Scheduling PerformFitToView via Dispatcher. CanvasSize=({CadCanvas.ActualWidth}, {CadCanvas.ActualHeight})");
+                    AppLogger.Log($"[INFO] LoadDxfButton_Click: Scheduling PerformFitToView via Dispatcher. CanvasSize=({CadCanvas.ActualWidth}, {CadCanvas.ActualHeight})", LogLevel.Info);
                     Dispatcher.BeginInvoke(new Action(() =>
                     {
-                        Debug.WriteLine($"[DEBUG] LoadDxfButton_Click (Dispatcher): Calling PerformFitToView. CanvasSize=({CadCanvas.ActualWidth}, {CadCanvas.ActualHeight})");
-                        PerformFitToView(); // This will use the tighter bounding box and centering logic
+                        AppLogger.Log($"[INFO] LoadDxfButton_Click (Dispatcher): Calling PerformFitToView. CanvasSize=({CadCanvas.ActualWidth}, {CadCanvas.ActualHeight})", LogLevel.Info);
+                        PerformFitToView();
                         StatusTextBlock.Text = $"Loaded: {Path.GetFileName(_currentDxfFilePath)}. Click shapes to select.";
-                        AppLogger.Log($"Successfully loaded DXF: {Path.GetFileName(_currentDxfFilePath)}");
+                        AppLogger.Log($"[INFO] Successfully displayed DXF: {Path.GetFileName(_currentDxfFilePath)} after PerformFitToView.", LogLevel.Info);
                         if (_currentDxfDocument?.Header != null)
                         {
                             AppLogger.Log($"DXF Header Units: {_currentDxfDocument.Header.DefaultDrawingUnits}", LogLevel.Info);
@@ -2406,26 +2395,15 @@ namespace RobTeach.Views
             {
                 AppLogger.Log($"GetDxfBoundingBox: Processing {dxfDoc.Entities.Count()} entities.", LogLevel.Info);
 
-                // First pass: count significant entities
-                foreach (var entity in dxfDoc.Entities)
-                {
-                    if (entity == null || _layersToIgnoreForBoundingBox.Contains((entity.Layer ?? "NULL_LAYER"), StringComparer.OrdinalIgnoreCase))
-                    {
-                        continue;
-                    }
-                    if (!IsSpecialAxisLine(entity))
-                    {
-                        significantEntitiesCount++;
-                    }
-                }
-                AppLogger.Log($"GetDxfBoundingBox: Found {significantEntitiesCount} significant (non-axis or non-filtered) entities.", LogLevel.Debug);
+            // significantEntitiesCount and IsSpecialAxisLine logic fully removed.
+            // All entities not on ignored layers will be processed for bounds.
 
                 int entityIndex = 0;
                 foreach (var entity in dxfDoc.Entities)
                 {
                     if (entity == null)
                     {
-                        AppLogger.Log($"GetDxfBoundingBox: Entity at index {entityIndex} is null, skipping.", LogLevel.Debug);
+                    AppLogger.Log($"GetDxfBoundingBox: Entity at index {entityIndex} is null, skipping.", LogLevel.Warning); // Changed to Warning
                         entityIndex++;
                         continue;
                     }
@@ -2460,14 +2438,8 @@ namespace RobTeach.Views
                         continue;
                     }
 
-                    // Temporarily disabling the skipping of special axis lines
-                    // // Heuristic: If there are significant entities, ignore the special axis lines for bounding box calculation.
-                    // if (significantEntitiesCount > 0 && IsSpecialAxisLine(entity))
-                    // {
-                    //     AppLogger.Log($"GetDxfBoundingBox: Idx:{entityIndex}, Type:{entityType}, Layer:'{entityLayer}' - SKIPPED as it's a special axis line and other significant entities exist.", LogLevel.Info);
-                    //     entityIndex++;
-                    //     continue;
-                    // }
+                // IsSpecialAxisLine and significantEntitiesCount logic has been removed.
+                // All entities passing the layer filter will contribute to bounds.
 
                     try
                     {
@@ -2526,26 +2498,7 @@ namespace RobTeach.Views
             return finalBoundingBox;
         }
 
-        private bool IsSpecialAxisLine(DxfEntity entity)
-        {
-            if (entity is DxfLine line)
-            {
-                // Check for horizontal axis line: Y approx 0, X spans -1000 to 1000 (or vice-versa)
-                bool isHorizontalAxis =
-                    (Math.Abs(line.P1.Y) < 0.01 && Math.Abs(line.P2.Y) < 0.01 && Math.Abs(line.P1.Z) < 0.01 && Math.Abs(line.P2.Z) < 0.01) &&
-                    ((Math.Abs(line.P1.X + 1000.0) < 0.01 && Math.Abs(line.P2.X - 1000.0) < 0.01) ||
-                     (Math.Abs(line.P1.X - 1000.0) < 0.01 && Math.Abs(line.P2.X + 1000.0) < 0.01));
-
-                // Check for vertical axis line: X approx 0, Y spans -1000 to 1000 (or vice-versa)
-                bool isVerticalAxis =
-                    (Math.Abs(line.P1.X) < 0.01 && Math.Abs(line.P2.X) < 0.01 && Math.Abs(line.P1.Z) < 0.01 && Math.Abs(line.P2.Z) < 0.01) &&
-                    ((Math.Abs(line.P1.Y + 1000.0) < 0.01 && Math.Abs(line.P2.Y - 1000.0) < 0.01) ||
-                     (Math.Abs(line.P1.Y - 1000.0) < 0.01 && Math.Abs(line.P2.Y + 1000.0) < 0.01));
-
-                return isHorizontalAxis || isVerticalAxis;
-            }
-            return false;
-        }
+        // IsSpecialAxisLine method removed entirely.
 
         private void FitToViewButton_Click(object sender, RoutedEventArgs e) { AppLogger.Log("[USER ACTION] FitToViewButton_Click called.", LogLevel.Debug); PerformFitToView(); }
         private void PerformFitToView()
