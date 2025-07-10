@@ -2588,16 +2588,15 @@ namespace RobTeach.Views
             double contentCenterY = _dxfBoundingBox.Y + _dxfBoundingBox.Height / 2.0;
             AppLogger.Log($"PerformFitToView: Content Center (DXF coords): X={contentCenterX:F3}, Y={contentCenterY:F3}", LogLevel.Info);
 
-            // Adjust translation for RenderTransformOrigin="0.5,0.5"
-            // The (0,0) of the TranslateTransform is now the center of the CadCanvas.
-            // We want the content's center (contentCenterX, contentCenterY) *after being scaled*
-            // to align with this canvas center.
-            _translateTransform.X = -(contentCenterX * _scaleTransform.ScaleX);
-            _translateTransform.Y = -(contentCenterY * _scaleTransform.ScaleY);
-            AppLogger.Log($"PerformFitToView (RenderTransformOrigin 0.5,0.5): Applied TranslateTransform: X={_translateTransform.X:F3}, Y={_translateTransform.Y:F3}", LogLevel.Info);
+            // Standard translation logic for RenderTransformOrigin="0,0"
+            _translateTransform.X = (canvasWidth / 2.0) - (contentCenterX * _scaleTransform.ScaleX);
+            _translateTransform.Y = (canvasHeight / 2.0) - (contentCenterY * _scaleTransform.ScaleY);
+            AppLogger.Log($"PerformFitToView (RenderTransformOrigin 0,0): Applied TranslateTransform: X={_translateTransform.X:F3}, Y={_translateTransform.Y:F3}", LogLevel.Info);
 
-            StatusTextBlock.Text = "View fitted to content (centered with RenderTransformOrigin 0.5,0.5).";
-            AppLogger.Log("PerformFitToView: Method completed with RenderTransformOrigin 0.5,0.5 alignment.", LogLevel.Info);
+            AppLogger.Log($"PerformFitToView: Culture: {System.Globalization.CultureInfo.CurrentCulture.Name}, UI Culture: {System.Globalization.CultureInfo.CurrentUICulture.Name}", LogLevel.Info);
+
+            StatusTextBlock.Text = "View fitted to content (centered).";
+            AppLogger.Log("PerformFitToView: Method completed with default RenderTransformOrigin centering alignment.", LogLevel.Info);
         }
         private void CadCanvas_MouseWheel(object sender, MouseWheelEventArgs e)
         {
