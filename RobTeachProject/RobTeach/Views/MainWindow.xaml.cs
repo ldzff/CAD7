@@ -2441,13 +2441,14 @@ namespace RobTeach.Views
                         continue;
                     }
 
-                    // Heuristic: If there are significant entities, ignore the special axis lines for bounding box calculation.
-                    if (significantEntitiesCount > 0 && IsSpecialAxisLine(entity))
-                    {
-                        AppLogger.Log($"GetDxfBoundingBox: Idx:{entityIndex}, Type:{entityType}, Layer:'{entityLayer}' - SKIPPED as it's a special axis line and other significant entities exist.", LogLevel.Info);
-                        entityIndex++;
-                        continue;
-                    }
+                    // Temporarily disabling the skipping of special axis lines
+                    // // Heuristic: If there are significant entities, ignore the special axis lines for bounding box calculation.
+                    // if (significantEntitiesCount > 0 && IsSpecialAxisLine(entity))
+                    // {
+                    //     AppLogger.Log($"GetDxfBoundingBox: Idx:{entityIndex}, Type:{entityType}, Layer:'{entityLayer}' - SKIPPED as it's a special axis line and other significant entities exist.", LogLevel.Info);
+                    //     entityIndex++;
+                    //     continue;
+                    // }
 
                     try
                     {
