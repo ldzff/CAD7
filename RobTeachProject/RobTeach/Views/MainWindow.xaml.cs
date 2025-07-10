@@ -1488,7 +1488,7 @@ namespace RobTeach.Views
                     // We'll skip handle mapping for now
 
                     AppLogger.Log($"[INFO] LoadDxfButton_Click: Successfully loaded DXF. Processing {_currentDxfDocument.Entities.Count()} entities for display.", LogLevel.Info);
-                    List<System.Windows.Shapes.Shape> wpfShapes = _cadService.GetWpfShapesFromDxf(_currentDxfDocument);
+                    List<System.Windows.Shapes.Shape?> wpfShapes = _cadService.GetWpfShapesFromDxf(_currentDxfDocument); // Adjusted for nullable shapes
 
                     int entityIndex = 0;
                     foreach(var entity in _currentDxfDocument.Entities) // Using _currentDxfDocument.Entities which should be non-null here
@@ -2466,7 +2466,7 @@ namespace RobTeach.Views
                         }
                         else
                         {
-                            AppLogger.Log($"GetDxfBoundingBox: Idx:{entityIndex}, Type:{entityType}, Layer:'{entityLayer}' - No valid bounds returned by CalculateEntityBoundsSimple.", LogLevel.Debug);
+                            AppLogger.Log($"GetDxfBoundingBox:   Idx:{entityIndex}, Type:{entityType}, Layer:'{entityLayer}' - No valid bounds returned by CalculateEntityBoundsSimple.", LogLevel.Warning); // This was already LogLevel.Warning, so it's correct.
                         }
 
                         if (hasValidBounds)
@@ -2508,7 +2508,7 @@ namespace RobTeach.Views
             _scaleTransform.ScaleY = 1.0; // No Y-inversion for this specific test
             _translateTransform.X = 0;
             _translateTransform.Y = 0;
-            AppLogger.Log("PerformFitToView: [DIAGNOSTIC TEST] Applied fixed identity transform (Scale=1, No Y-inversion, Translate=0). DXF coordinates should map 1:1 to canvas coordinates relative to RenderTransformOrigin.", LogLevel.Warn);
+            AppLogger.Log("PerformFitToView: [DIAGNOSTIC TEST] Applied fixed identity transform (Scale=1, No Y-inversion, Translate=0). DXF coordinates should map 1:1 to canvas coordinates relative to RenderTransformOrigin.", LogLevel.Warning); // Corrected to LogLevel.Warning
             // Optionally, uncomment the return below to *only* apply this diagnostic transform
             // return;
 

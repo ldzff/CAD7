@@ -35,9 +35,9 @@ namespace RobTeach.Services
             }
         }
         
-        public List<System.Windows.Shapes.Shape> GetWpfShapesFromDxf(DxfFile dxfFile)
+        public List<System.Windows.Shapes.Shape?> GetWpfShapesFromDxf(DxfFile dxfFile) // Allow null shapes in list
         {
-            var wpfShapes = new List<System.Windows.Shapes.Shape>();
+            var wpfShapes = new List<System.Windows.Shapes.Shape?>(); // Allow null shapes in list
             if (dxfFile == null)
             {
                 AppLogger.Log("[CadService] GetWpfShapesFromDxf: dxfFile is null. Returning empty list.", LogLevel.Warning);
